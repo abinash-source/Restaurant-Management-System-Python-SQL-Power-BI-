@@ -1,0 +1,146 @@
+import pyodbc
+
+# SQL CONNECTION
+conn = pyodbc.connect(
+    "Driver={ODBC Driver 17 for SQL Server};"
+    "Server=ABINASH;"
+    "Database=Restaurant_data;"
+    "Trusted_Connection=yes;"
+)
+
+cursor = conn.cursor()
+
+# Helper: Safe Input
+def safe_input(prompt, type_func):
+    while True:
+        try:
+            return type_func(input(prompt))
+        except:
+            print("Invalid input. Try again.")
+
+# Get or Create Restaurant (SQL)
+def get_or_create_restaurant(name):
+    cursor.execute("SELECT restaurant_id FROM Dim_Restaurant WHERE LOWER(restaurant_name)=LOWER(?)", name)
+    row = cursor.fetchone()
+
+    if row:
+        print("Restaurant already exists. ID =", row[0])
+        return row[0]
+
+    cursor.execute("INSERT INTO Dim_Restaurant (restaurant_name) VALUES (?)", name)
+    cursor.execute("SELECT @@IDENTITY")
+    rid = cursor.fetchone()[0]
+    conn.commit()
+
+    print("New Restaurant inserted. ID =", rid)
+    return rid
+
+# Get or Create Branch (SQL)
+def get_or_create_branch(restaurant_id, branch_name):
+    cursor.execute("""
+        SELECT branch_id FROM Dim_Branch
+        WHERE restaurant_id=? AND LOWER(branch_name)=LOWER(?)
+    """, restaurant_id, branch_name)
+    row = cursor.fetchone()
+
+    if row:
+        print("Branch already exists. ID =", row[0])
+        return row[0]
+
+    cursor.execute("""
+        INSERT INTO Dim_Branch (restaurant_id, branch_name)
+        VALUES (?, ?)
+    """, restaurant_id, branch_name)
+
+    cursor.execute("SELECT @@IDENTITY")
+    bid = cursor.fetchone()[0]
+    conn.commit()
+
+    print("New Branch inserted. ID =", bid)
+    return bid
+
+# Insert Item (SQL)
+def insert_item(item_name, dish_price):
+    cursor.execute("""
+        INSERT INTO Dim_Item (item_name, dish_price)
+        VALUES (?, ?)
+    """, item_name, dish_price)
+
+    cursor.execute("SELECT @@IDENTITY")
+    item_id = cursor.fetchone()[0]
+    conn.commit()
+
+    print("Item inserted. ID =", item_id)
+    return item_id
+
+# Insert Sales (SQL)
+def insert_sales(branch_id, item_id, odate, quantity_prep, quantity_sold, income, total_investment):
+    cursor.execute("""
+        INSERT INTO Fact_Sales
+        (branch_id, item_id, odate, quantity_prep, quantity_sold, income, total_investment)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, branch_id, item_id, odate, quantity_prep, quantity_sold, income, total_investment)
+
+    conn.commit()
+    print("Sales inserted for item ID:", item_id)
+
+# MAIN PROGRAM LOOP
+while True:
+
+    # Restaurant name
+    while True:
+        restaurant_name = input("Enter restaurant name: ").strip()
+        if restaurant_name != "":
+            break
+        print("Restaurant name cannot be empty.")
+
+    restaurant_id = get_or_create_restaurant(restaurant_name)
+
+    # Number of branches
+    no_of_branches = safe_input("Enter number of branches: ", int)
+
+    for b in range(no_of_branches):
+
+        # Branch name
+        while True:
+            branch_name = input("Enter branch name: ").strip()
+            if branch_name != "":
+                break
+            print("Branch name cannot be empty.")
+
+        branch_id = get_or_create_branch(restaurant_id, branch_name)
+
+        # Items + Sales
+        no_of_items = safe_input("Enter number of menu items: ", int)
+        total_investment = safe_input("Enter total investment: ", float)
+
+        for i in range(no_of_items):
+
+            while True:
+                item_name = input("Enter item name: ").strip()
+                if item_name != "":
+                    break
+                print("Item name cannot be empty.")
+
+            dish_price = safe_input("Enter dish price: ", float)
+            quantity_prep = safe_input("Enter quantity prepared: ", int)
+            quantity_sold = safe_input("Enter quantity sold: ", int)
+            odate = input("Enter date (YYYY-MM-DD): ").strip()
+
+            income = dish_price * quantity_sold
+
+            # Insert item
+            item_id = insert_item(item_name, dish_price)
+
+            # Insert sales
+            insert_sales(branch_id, item_id, odate, quantity_prep, quantity_sold, income, total_investment)
+
+    print("\nRestaurant completed!\n")
+
+    choice = input("Do you want to enter another restaurant? (yes/no): ").strip().lower()
+    if choice != "yes":
+        break
+
+print("\nAll data inserted into SQL successfully!")
+cursor.close()
+conn.close()
