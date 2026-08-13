@@ -36,4 +36,4 @@ python python/data_entry.py
 RUN sql/schema.sql
 
 ## 📊 Dashboard Preview
-![Restaurant Sales Dashboard](powerbi/screenshots/Restaurant_Management_Dashboard.png)
+![Restaurant Sales Dashboard](Restaurant_Management_Dashboard.png)
